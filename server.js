@@ -12,7 +12,7 @@ const httpServer = createServer(app);
 
 const io = new SocketIOServer(httpServer, {
   cors: {
-    origin: 'http://localhost:5173',
+    origin: 'http://localhost:3000',
     // Add other CORS options as needed
   }
 });
@@ -52,7 +52,7 @@ const createToken = async (roomName, participantName) => {
 // Enable CORS for all requests
 
 
-const port = 3000;
+const port = 3001;
 
 app.get('/getToken', async (req, res) => {
   const { roomName, participantName } = req.query;
@@ -131,22 +131,61 @@ app.get('/roomAvailable', async (req, res) => {
 io.on('connection', (socket) => {
   console.log('A user connected');
 
-  socket.on('joinCall', async(userName,roomToken,userToBeCalled,roomName,callType) => {
+  socket.on('call', async(currentRoomId,userName,members,callType) => {
     // Broadcast to other clients that a new user has joined
-    socket.broadcast.emit('userJoined', userName,roomToken,userToBeCalled,roomName,callType);
+    // console.log(members)
+    let membersToCall = [];
+    // console.log("ok",members);
+    if(members){
+      members.forEach((member) => {
+        // console.log(member)
+        if(member.name !== userName){
+          membersToCall.push(member.name);
+        }
+      })
+    }
+    // console.log(currentRoomId,userName,membersToCall,callType)
+    socket.broadcast.emit('userCalling',currentRoomId,userName,membersToCall,callType);
   });
 
-  socket.on('leaveCall', async(userName,userToBeCalled) => {
+  socket.on('acceptCall', async(userName,userWhoIsCalling,roomName,callType) => {
     // Broadcast to other clients that a new user has joined
-    socket.broadcast.emit('userLeft', userName,userToBeCalled);
+    const data = await roomService.listParticipants(roomName);
+
+    socket.broadcast.emit('userAccepted',userName,userWhoIsCalling,roomName,callType);
   });
 
-  socket.on('rejectCall', async(userName,userWhoIsCalling) => {
+  socket.on('rejectCall', async(userName,userWhoIsCalling,roomName,members) => {
     // Broadcast to other clients that a new user has joined
-    console.log(userName,userWhoIsCalling);
-    socket.broadcast.emit('userRejected', userName,userWhoIsCalling);
+    let membersToCall = [];
+    // console.log("ok",members);
+    if(members){
+      members.forEach((member) => {
+        // console.log(member)
+        if(member.name !== userWhoIsCalling){
+          membersToCall.push(member.name);
+        }
+      })
+    }
+    socket.broadcast.emit('userRejected',userName,userWhoIsCalling,roomName,membersToCall);
   });
 
+  socket.on('cancelCall', async(userName,members,roomName) => {
+    // Broadcast to other clients that a new user has joined
+
+    let membersToCall = [];
+    // console.log("ok",members);
+    if(members){
+      members.forEach((member) => {
+        // console.log(member)
+        if(member.name !== userName){
+          membersToCall.push(member.name);
+        }
+      })
+    }
+
+    socket.broadcast.emit('userCancelled',userName,membersToCall,roomName);
+  });
 
 
   socket.on('disconnect', () => {
