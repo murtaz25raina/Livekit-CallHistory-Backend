@@ -68,6 +68,12 @@ app.get('/getParticipants', async (req, res) => {
   res.send({info:'success',data: data});
 });
 
+app.get('/getParticipant',async (req, res) => {
+  const { roomName,identity } = req.query;
+  const response = await roomService.  getParticipant(roomName, identity);
+  res.send({info:'success',data: response});
+})
+
 
 app.get('/muteParticipant', async (req, res) => {
   const { roomName,identity } = req.query;
@@ -105,6 +111,13 @@ app.get('/createRoom', async (req, res) => {
   
 });
 
+app.get('/roomDetails', async (req, res) => {
+  
+  roomService.listRooms().then((rooms) => {
+    res.send({info:'Room created',rooms});
+  });
+})
+
 
 app.get('/roomAvailable', async (req, res) => {
   const { roomName } = req.query;
@@ -131,60 +144,64 @@ app.get('/roomAvailable', async (req, res) => {
 io.on('connection', (socket) => {
   console.log('A user connected');
 
-  socket.on('call', async(currentRoomId,userName,members,callType) => {
+  socket.on('call', async(currentRoomId,userName,members,callType,callDetail) => {
     // Broadcast to other clients that a new user has joined
     // console.log(members)
-    let membersToCall = [];
-    // console.log("ok",members);
-    if(members){
-      members.forEach((member) => {
-        // console.log(member)
-        if(member.name !== userName){
-          membersToCall.push(member.name);
-        }
-      })
-    }
+    
     // console.log(currentRoomId,userName,membersToCall,callType)
-    socket.broadcast.emit('userCalling',currentRoomId,userName,membersToCall,callType);
+    socket.broadcast.emit('userCalling',currentRoomId,userName,members,callType,callDetail);
   });
 
-  socket.on('acceptCall', async(userName,userWhoIsCalling,roomName,callType) => {
+  socket.on('acceptCall', async(userName,userWhoIsCalling,roomName,callType,callDetail) => {
     // Broadcast to other clients that a new user has joined
-    const data = await roomService.listParticipants(roomName);
+    // const data = await roomService.listParticipants(roomName);
 
-    socket.broadcast.emit('userAccepted',userName,userWhoIsCalling,roomName,callType);
+    socket.broadcast.emit('userAccepted',userName,userWhoIsCalling,roomName,callType,callDetail);
   });
 
-  socket.on('rejectCall', async(userName,userWhoIsCalling,roomName,members) => {
+  socket.on('leaveCall', async(userName,members,roomName,callDetail) => {
     // Broadcast to other clients that a new user has joined
-    let membersToCall = [];
-    // console.log("ok",members);
-    if(members){
-      members.forEach((member) => {
-        // console.log(member)
-        if(member.name !== userWhoIsCalling){
-          membersToCall.push(member.name);
-        }
+    const memberOnCallCurrently = await roomService.listParticipants(roomName);
+    let mOCallCur = []
+    if(memberOnCallCurrently){
+      memberOnCallCurrently.forEach((member) => {
+        mOCallCur.push(member.identity);
       })
     }
-    socket.broadcast.emit('userRejected',userName,userWhoIsCalling,roomName,membersToCall);
+    // console.log(mOCallCur)
+    socket.broadcast.emit('userLeft',userName,members,roomName,callDetail,mOCallCur);
+  });
+
+  socket.on('rejectCall', async(userName,userWhoIsCalling,roomName,members,callDetail) => {
+    // Broadcast to other clients that a new user has joined
+    // let membersToCall = [];
+    // // console.log("ok",members);
+    // if(members){
+    //   members.forEach((member) => {
+    //     // console.log(member)
+    //     if(member.name !== userWhoIsCalling){
+    //       membersToCall.push(member.name);
+    //     }
+    //   })
+    // }
+    socket.broadcast.emit('userRejected',userName,userWhoIsCalling,roomName,members,callDetail);
   });
 
   socket.on('cancelCall', async(userName,members,roomName) => {
     // Broadcast to other clients that a new user has joined
 
-    let membersToCall = [];
-    // console.log("ok",members);
-    if(members){
-      members.forEach((member) => {
-        // console.log(member)
-        if(member.name !== userName){
-          membersToCall.push(member.name);
-        }
-      })
-    }
+    // let membersToCall = [];
+    // // console.log("ok",members);
+    // if(members){
+    //   members.forEach((member) => {
+    //     // console.log(member)
+    //     if(member.name !== userName){
+    //       membersToCall.push(member.name);
+    //     }
+    //   })
+    // }
 
-    socket.broadcast.emit('userCancelled',userName,membersToCall,roomName);
+    socket.broadcast.emit('userCancelled',userName,members,roomName);
   });
 
 
